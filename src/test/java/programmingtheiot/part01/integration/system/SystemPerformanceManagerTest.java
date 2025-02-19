@@ -31,8 +31,7 @@ public class SystemPerformanceManagerTest
 {
 	// static
 	
-	private static final Logger _Logger =
-		Logger.getLogger(SystemPerformanceManagerTest.class.getName());
+	private static final Logger _Logger = Logger.getLogger(SystemPerformanceManagerTest.class.getName());
 	
 	
 	// member var's
