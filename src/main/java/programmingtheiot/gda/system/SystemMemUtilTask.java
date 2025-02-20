@@ -8,8 +8,6 @@
 
 package programmingtheiot.gda.system;
 
-import static programmingtheiot.gda.system.BaseSystemUtilTask._Logger;
-
 import java.lang.management.ManagementFactory;
 import java.lang.management.MemoryUsage;
 
@@ -23,6 +21,8 @@ import programmingtheiot.common.ConfigConst;
  */
 public class SystemMemUtilTask extends BaseSystemUtilTask
 {
+	private static final Logger _Logger = Logger.getLogger(SystemMemUtilTask.class.getName());
+	
 	// constructors
 	
 	/**
