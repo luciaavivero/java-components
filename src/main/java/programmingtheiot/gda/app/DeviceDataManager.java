@@ -46,7 +46,7 @@ public class DeviceDataManager implements IDataMessageListener
 	// private var's
 	
 	private boolean enableMqttClient = true;
-	private boolean enableCoapServer = false;
+	private boolean enableCoapServer = true;
 	private boolean enableCloudClient = false;
 	private boolean enableSmtpClient = false;
 	private boolean enablePersistenceClient = false;
@@ -66,6 +66,25 @@ public class DeviceDataManager implements IDataMessageListener
 	public DeviceDataManager()
 	{
 		super();
+
+		ConfigUtil configUtil = ConfigUtil.getInstance();
+
+		this.enableMqttClient =
+			configUtil.getBoolean(
+				ConfigConst.GATEWAY_DEVICE, ConfigConst.ENABLE_MQTT_CLIENT_KEY);
+
+		this.enableCoapServer =
+			configUtil.getBoolean(
+				ConfigConst.GATEWAY_DEVICE, ConfigConst.ENABLE_COAP_SERVER_KEY);
+
+		this.enableCloudClient =
+			configUtil.getBoolean(
+				ConfigConst.GATEWAY_DEVICE, ConfigConst.ENABLE_CLOUD_CLIENT_KEY);
+
+		this.enablePersistenceClient =
+			configUtil.getBoolean(
+				ConfigConst.GATEWAY_DEVICE, ConfigConst.ENABLE_PERSISTENCE_CLIENT_KEY);
+
 		
 		initManager();
 		initConnections();

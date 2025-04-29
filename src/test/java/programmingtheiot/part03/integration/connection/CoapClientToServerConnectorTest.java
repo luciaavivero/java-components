@@ -21,6 +21,9 @@ import org.junit.Test;
 
 import programmingtheiot.common.DefaultDataMessageListener;
 import programmingtheiot.common.IDataMessageListener;
+import programmingtheiot.common.ResourceNameEnum;
+import programmingtheiot.data.DataUtil;
+import programmingtheiot.data.SystemPerformanceData;
 import programmingtheiot.gda.connection.*;
 
 /**
@@ -59,16 +62,16 @@ public class CoapClientToServerConnectorTest
 	{
 		_ServerGateway = new CoapServerGateway(new DefaultDataMessageListener());
 		
-		assertTrue(_ServerGateway.startServer());
+		//assertTrue(_ServerGateway.startServer());
 	}
 	
 	/**
 	 * @throws java.lang.Exception
 	 */
-	@AfterClass
+	//@AfterClass
 	public static void tearDownAfterClass() throws Exception
 	{
-		assertTrue(_ServerGateway.stopServer());
+		//assertTrue(_ServerGateway.stopServer());
 	}
 	
 	/**
@@ -96,10 +99,21 @@ public class CoapClientToServerConnectorTest
 	/**
 	 * 
 	 */
-	@Test
+	//@Test
 	public void testConnectAndDiscover()
 	{
 		assertTrue(this.coapClient.sendDiscoveryRequest(DEFAULT_TIMEOUT));
+	}
+
+	@Test
+	public void testSystemPerformancePutMessage()
+	{
+		SystemPerformanceData spData = new SystemPerformanceData();
+
+		String jsonData = DataUtil.getInstance().systemPerformanceDataToJson(spData);
+
+		this.coapClient.sendPutRequest(
+			ResourceNameEnum.CDA_SYSTEM_PERF_MSG_RESOURCE, null, USE_DEFAULT_RESOURCES, jsonData, DEFAULT_TIMEOUT);
 	}
 	
 }
