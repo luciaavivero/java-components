@@ -129,11 +129,15 @@ public class MqttClientPerformanceTest
 		SensorData sensorData = new SensorData();
 		
 		String payload = DataUtil.getInstance().sensorDataToJson(sensorData);
+		// Si por alguna razón es null, usar un payload por defecto
+		if (payload == null) {
+			payload = "{\"dummy\":0}";
+		}
 		int payloadLen = payload.length();
 		
 		long startMillis = System.currentTimeMillis();
 		
-		for (int sequenceNo = 1; sequenceNo <= maxTestRuns; sequenceNo++) {
+		for (int sequenceNo = 0; sequenceNo <= maxTestRuns; sequenceNo++) {
 			this.mqttClient.publishMessage(ResourceNameEnum.CDA_MGMT_STATUS_CMD_RESOURCE, payload, qos);
 		}
 		
@@ -149,6 +153,8 @@ public class MqttClientPerformanceTest
 				(float) startMillis / 1000, (float) endMillis / 1000, (float) elapsedMillis / 1000);
 		
 		_Logger.info(msg);
+
+		_Logger.info("Publish message - QoS " + qos + " [" + maxTestRuns + "]: " + elapsedMillis + " ms");
 	}
 	
 }
