@@ -15,6 +15,13 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import programmingtheiot.gda.system.SystemPerformanceManager;
+import programmingtheiot.gda.connection.CoapServerGateway;
+import programmingtheiot.common.ConfigUtil;
+import programmingtheiot.common.IDataMessageListener;
+
+
+
+
 
 /**
  * Main GDA application.
@@ -30,6 +37,9 @@ public class GatewayDeviceApp
 	
 	// private var's
 	private SystemPerformanceManager sysPerfMgr = null;
+	private CoapServerGateway coapServer = null;
+	private IDataMessageListener dataMsgListener = null;
+
 	
 	// constructors
 	
@@ -80,6 +90,18 @@ public class GatewayDeviceApp
 	public void startApp()
 	{
 		_Logger.info("Starting GDA...");
+
+		// Start CoAP server if enabled in config
+		boolean enableCoap = ConfigUtil.getInstance().getBoolean("GatewayDevice", "enableCoapServer");
+		if (enableCoap) {
+			coapServer = new CoapServerGateway(dataMsgListener);
+			_Logger.info("Launching CoAP Server...");
+			coapServer.startServer();
+			int coapPort = ConfigUtil.getInstance().getInteger("Coap.GatewayService", "port");
+			_Logger.info("CoAP Server started on port " + coapPort);
+		} else {
+			_Logger.info("CoAP Server disabled via configuration.");
+		}
 		
 		try {
 			// TODO: Your code here
@@ -105,6 +127,12 @@ public class GatewayDeviceApp
 	public void stopApp(int code)
 	{
 		_Logger.info("Stopping GDA...");
+
+		if (coapServer != null) {
+			_Logger.info("Stopping CoAP Server...");
+			coapServer.stopServer();
+			_Logger.info("CoAP Server stopped.");
+		}
 		
 		try {
 			// TODO: Your code here
