@@ -31,8 +31,16 @@ import java.io.File;
 import javax.net.ssl.SSLSocketFactory;
 
 import org.eclipse.paho.client.mqttv3.IMqttMessageListener;
+import org.eclipse.paho.client.mqttv3.MqttAsyncClient;
 
 import programmingtheiot.common.SimpleCertManagementUtil;
+import programmingtheiot.data.ActuatorData;
+import programmingtheiot.data.DataUtil;
+import programmingtheiot.data.SensorData;
+import programmingtheiot.data.SystemPerformanceData;
+
+
+
 
 /**
  * Shell representation of class for student implementation.
@@ -46,7 +54,8 @@ public class MqttClientConnector implements IPubSubClient, MqttCallbackExtended
 	
 	private boolean useAsyncClient = false;
 
-	private MqttClient           mqttClient = null;
+	private MqttAsyncClient      mqttClient = null;
+	//private MqttClient           mqttClient = null;
 	private MqttConnectOptions   connOpts = null;
 	private MemoryPersistence    persistence = null;
 	private IDataMessageListener dataMsgListener = null;
@@ -75,53 +84,28 @@ public class MqttClientConnector implements IPubSubClient, MqttCallbackExtended
 	{
 		super();
 
-		ConfigUtil configUtil = ConfigUtil.getInstance();
+		//ConfigUtil configUtil = ConfigUtil.getInstance();
 
-		this.host = configUtil.getProperty(ConfigConst.MQTT_GATEWAY_SERVICE, ConfigConst.HOST_KEY, ConfigConst.DEFAULT_HOST);
+		//this.host = configUtil.getProperty(ConfigConst.MQTT_GATEWAY_SERVICE, ConfigConst.HOST_KEY, ConfigConst.DEFAULT_HOST);
 
-		this.port = configUtil.getInteger(ConfigConst.MQTT_GATEWAY_SERVICE, ConfigConst.PORT_KEY, ConfigConst.DEFAULT_MQTT_PORT);
+		//this.port = configUtil.getInteger(ConfigConst.MQTT_GATEWAY_SERVICE, ConfigConst.PORT_KEY, ConfigConst.DEFAULT_MQTT_PORT);
 
-		this.brokerKeepAlive = configUtil.getInteger(ConfigConst.MQTT_GATEWAY_SERVICE, ConfigConst.KEEP_ALIVE_KEY, ConfigConst.DEFAULT_KEEP_ALIVE);
+		//this.brokerKeepAlive = configUtil.getInteger(ConfigConst.MQTT_GATEWAY_SERVICE, ConfigConst.KEEP_ALIVE_KEY, ConfigConst.DEFAULT_KEEP_ALIVE);
 	
-		// This next config file boolean property is optional; it can be
-		// set within the [Mqtt.GatewayService] and [Cloud.GatewayService]
-		// sections of PiotConfig.props. You can use it to create a logical
-		// flow within this class to determine whether to use MqttClient
-		// or MqttAsyncClient, or simply choose one of the two classes based
-		// on your usage needs. Generally speaking, MqttAsyncClient will
-		// be necessary when running the GDA as an application, as it will
-		// need to handle incoming and outgoing messages using MQTT
-		// simultaneously. For GDA-only testing using the test cases
-		// specified in this lab module and others, it's generally best -
-		// and likely required - to use MqttClient.
-		//
-		// IMPORTANT: If you're using an older version of ConfigConst.java,
-		// you'll need to add the following line of code to ConfigConst.java:
-		// public static final String USE_ASYNC_CLIENT_KEY = "useAsyncClient";
 	
-		this.useAsyncClient = configUtil.getBoolean(ConfigConst.MQTT_GATEWAY_SERVICE, ConfigConst.USE_ASYNC_CLIENT_KEY);
+		//this.useAsyncClient = configUtil.getBoolean(ConfigConst.MQTT_GATEWAY_SERVICE, ConfigConst.USE_ASYNC_CLIENT_KEY);
+		//this.clientID = MqttClient.generateClientId();
 
-		// NOTE: paho Java client requires a client ID - for now, you
-		// can use the generated client ID; for later exercises, you
-		// should define your own and load it from the config file
-		this.clientID = MqttClient.generateClientId();
+		//this.persistence = new MemoryPersistence();
+		//this.connOpts = new MqttConnectOptions();
 
-		// these are specific to the MQTT connection which will be used during connect
-		this.persistence = new MemoryPersistence();
-		this.connOpts = new MqttConnectOptions();
+		//this.connOpts.setKeepAliveInterval(this.brokerKeepAlive);
 
-		this.connOpts.setKeepAliveInterval(this.brokerKeepAlive);
+		//this.connOpts.setCleanSession(false);
 
-		// NOTE: If using a random clientID for each new connection,
-		// clean session should be 'true'; see MQTT spec for details
-		this.connOpts.setCleanSession(false);
+		//this.connOpts.setAutomaticReconnect(true);
 
-		// NOTE: Auto-reconnect can be a useful connection recovery feature
-		this.connOpts.setAutomaticReconnect(true);
-
-		// NOTE: URL does not have a protocol handler for "tcp",
-		// so we need to construct the URL manually
-		this.brokerAddr = this.protocol + "://" + this.host + ":" + this.port;
+		//this.brokerAddr = this.protocol + "://" + this.host + ":" + this.port;
 
 		initClientParameters(ConfigConst.MQTT_GATEWAY_SERVICE);
 	}
@@ -134,7 +118,8 @@ public class MqttClientConnector implements IPubSubClient, MqttCallbackExtended
 	{
 		try {
 			if (this.mqttClient == null) {
-				this.mqttClient = new MqttClient(this.brokerAddr, this.clientID, this.persistence);
+				//this.mqttClient = new MqttClient(this.brokerAddr, this.clientID, this.persistence);
+				this.mqttClient = new MqttAsyncClient(this.brokerAddr, this.clientID, this.persistence);
 				this.mqttClient.setCallback(this);
 			}
 
@@ -152,6 +137,7 @@ public class MqttClientConnector implements IPubSubClient, MqttCallbackExtended
 
 		return false;
 	}
+	
 
 	@Override
 	public boolean disconnectClient()
@@ -276,6 +262,13 @@ public class MqttClientConnector implements IPubSubClient, MqttCallbackExtended
 	public void connectComplete(boolean reconnect, String serverURI)
 	{
 		_Logger.info("MQTT connection successful (is reconnect = " + reconnect + "). Broker: " + serverURI);
+		
+		int qos = 1;
+
+		this.subscribeToTopic(ResourceNameEnum.CDA_ACTUATOR_RESPONSE_RESOURCE, qos);
+		this.subscribeToTopic(ResourceNameEnum.CDA_SENSOR_MSG_RESOURCE, qos);
+		this.subscribeToTopic(ResourceNameEnum.CDA_SYSTEM_PERF_MSG_RESOURCE, qos);
+		
 	}
 
 	@Override
@@ -294,8 +287,18 @@ public class MqttClientConnector implements IPubSubClient, MqttCallbackExtended
 	@Override
 	public void messageArrived(String topic, MqttMessage msg) throws Exception
 	{
-		// TODO: Logging level may need to be adjusted to reduce output in log file / console
-		_Logger.info("MQTT message arrived on topic: '" + topic + "'");
+		String payload = new String(msg.getPayload());
+		_Logger.info("Mensaje recibido en el tema: " + topic);
+
+		if (topic.equals(ResourceNameEnum.CDA_ACTUATOR_RESPONSE_RESOURCE.getResourceName())) {
+			messageArrivedActuatorData(topic, msg);
+		} else if (topic.equals(ResourceNameEnum.CDA_SENSOR_MSG_RESOURCE.getResourceName())) {
+			messageArrivedSensorData(topic, msg);
+		} else if (topic.equals(ResourceNameEnum.CDA_SYSTEM_PERF_MSG_RESOURCE.getResourceName())) {
+			messageArrivedSystemPerformanceData(topic, msg);
+		} else {
+			_Logger.warning("Tema desconocido recibido: " + topic);
+		}
 	}
 
 	
@@ -311,47 +314,17 @@ public class MqttClientConnector implements IPubSubClient, MqttCallbackExtended
 	{
 		ConfigUtil configUtil = ConfigUtil.getInstance();
 
-		this.host =
-			configUtil.getProperty(
-				configSectionName, ConfigConst.HOST_KEY, ConfigConst.DEFAULT_HOST);
-		this.port =
-			configUtil.getInteger(
-				configSectionName, ConfigConst.PORT_KEY, ConfigConst.DEFAULT_MQTT_PORT);
-		this.brokerKeepAlive =
-			configUtil.getInteger(
-				configSectionName, ConfigConst.KEEP_ALIVE_KEY, ConfigConst.DEFAULT_KEEP_ALIVE);
-		this.enableEncryption =
-			configUtil.getBoolean(
-				configSectionName, ConfigConst.ENABLE_CRYPT_KEY);
-		this.pemFileName =
-			configUtil.getProperty(
-				configSectionName, ConfigConst.CERT_FILE_KEY);
+		this.host = configUtil.getProperty(configSectionName, ConfigConst.HOST_KEY, ConfigConst.DEFAULT_HOST);
+		this.port = configUtil.getInteger(configSectionName, ConfigConst.PORT_KEY, ConfigConst.DEFAULT_MQTT_PORT);
+		this.brokerKeepAlive = configUtil.getInteger(configSectionName, ConfigConst.KEEP_ALIVE_KEY, ConfigConst.DEFAULT_KEEP_ALIVE);
+		this.enableEncryption = configUtil.getBoolean(configSectionName, ConfigConst.ENABLE_CRYPT_KEY);
+		this.pemFileName = configUtil.getProperty(configSectionName, ConfigConst.CERT_FILE_KEY);
 
-		// This next config file boolean property is optional; it can be
-		// set within the [Mqtt.GatewayService] and [Cloud.GatewayService]
-		// sections of PiotConfig.props. You can use it to create a logical
-		// flow within this class to determine whether to use MqttClient
-		// or MqttAsyncClient, or simply choose one of the two classes based
-		// on your usage needs. Generally speaking, MqttAsyncClient will
-		// be necessary when running the GDA as an application, as it will
-		// need to handle incoming and outgoing messages using MQTT
-		// simultaneously. For GDA-only testing using the test cases
-		// specified in this lab module and others, it's generally best -
-		// and likely required - to use MqttClient.
-		//
-		// IMPORTANT: If you're using an older version of ConfigConst.java,
-		// you'll need to add the following line of code to ConfigConst.java:
-		// public static final String USE_ASYNC_CLIENT_KEY = "useAsyncClient";
-		this.useAsyncClient =
-			configUtil.getBoolean(
-				ConfigConst.MQTT_GATEWAY_SERVICE, ConfigConst.USE_ASYNC_CLIENT_KEY);
 
-		// NOTE: updated from Lab Module 07 - attempt to load clientID from configuration file
-		this.clientID =
-			configUtil.getProperty(
-				ConfigConst.GATEWAY_DEVICE, ConfigConst.DEVICE_LOCATION_ID_KEY, MqttClient.generateClientId());
+		this.useAsyncClient = configUtil.getBoolean(ConfigConst.MQTT_GATEWAY_SERVICE, ConfigConst.USE_ASYNC_CLIENT_KEY);
 
-		// these are specific to the MQTT connection which will be used during connect
+		this.clientID = configUtil.getProperty(ConfigConst.GATEWAY_DEVICE, ConfigConst.DEVICE_LOCATION_ID_KEY, MqttClient.generateClientId());
+
 		this.persistence = new MemoryPersistence();
 		this.connOpts    = new MqttConnectOptions();
 
@@ -359,18 +332,14 @@ public class MqttClientConnector implements IPubSubClient, MqttCallbackExtended
 		this.connOpts.setCleanSession(this.useCleanSession);
 		this.connOpts.setAutomaticReconnect(this.enableAutoReconnect);
 
-		// if encryption is enabled, try to load and apply the cert(s)
 		if (this.enableEncryption) {
 			initSecureConnectionParameters(configSectionName);
 		}
 
-		// if there's a credential file, try to load and apply them
 		if (configUtil.hasProperty(configSectionName, ConfigConst.CRED_FILE_KEY)) {
 			initCredentialConnectionParameters(configSectionName);
 		}
 
-		// NOTE: URL does not have a protocol handler for "tcp" or "ssl",
-		// so construct the URL manually
 		this.brokerAddr  = this.protocol + "://" + this.host + ":" + this.port;
 
 		_Logger.info("Using URL for broker conn: " + this.brokerAddr);
@@ -432,15 +401,11 @@ public class MqttClientConnector implements IPubSubClient, MqttCallbackExtended
 				}
 			}
 
-			SSLSocketFactory sslFactory =
-				SimpleCertManagementUtil.getInstance().loadCertificate(this.pemFileName);
+			SSLSocketFactory sslFactory = SimpleCertManagementUtil.getInstance().loadCertificate(this.pemFileName);
 
 			this.connOpts.setSocketFactory(sslFactory);
 
-			// override current config parameters
-			this.port =
-				configUtil.getInteger(
-					configSectionName, ConfigConst.SECURE_PORT_KEY, ConfigConst.DEFAULT_MQTT_SECURE_PORT);
+			this.port = configUtil.getInteger(configSectionName, ConfigConst.SECURE_PORT_KEY, ConfigConst.DEFAULT_MQTT_SECURE_PORT);
 
 			this.protocol = ConfigConst.DEFAULT_MQTT_SECURE_PROTOCOL;
 
@@ -451,4 +416,60 @@ public class MqttClientConnector implements IPubSubClient, MqttCallbackExtended
 			this.enableEncryption = false;
 		}
 	}
+
+	private void messageArrivedActuatorData(String topic, MqttMessage msg) throws Exception
+	{
+		String payload = new String(msg.getPayload());
+		_Logger.info("Mensaje recibido en el tema: " + topic);
+
+		try {
+			ActuatorData actuatorData = DataUtil.getInstance().jsonToActuatorData(payload);
+			_Logger.info("Received ActuatorData response: " + actuatorData.getValue());
+
+			if (this.dataMsgListener != null) {
+				this.dataMsgListener.handleActuatorCommandResponse(ResourceNameEnum.CDA_ACTUATOR_RESPONSE_RESOURCE, actuatorData);
+			}
+		} catch (Exception e) {
+			_Logger.warning("Error al procesar ActuatorData: " + e.getMessage());
+		}
+	}
+
+	
+	private void messageArrivedSensorData(String topic, MqttMessage msg) throws Exception
+	{
+		String payload = new String(msg.getPayload());
+		_Logger.info("Mensaje recibido en el tema: " + topic);
+
+		try {
+			SensorData sensorData = DataUtil.getInstance().jsonToSensorData(payload);
+			_Logger.info("Receive SensorData response: " + sensorData.getValue());
+
+			if (this.dataMsgListener != null) {
+				this.dataMsgListener.handleSensorMessage(ResourceNameEnum.CDA_SENSOR_MSG_RESOURCE, sensorData);
+			}
+		} catch (Exception e) {
+			_Logger.warning("Failed to convert message payload to SensorData: " + e.getMessage());
+		}
+	}
+
+	
+	private void messageArrivedSystemPerformanceData(String topic, MqttMessage msg) throws Exception
+	{
+		String payload = new String(msg.getPayload());
+		_Logger.info("Mensaje recibido en el tema: " + topic);
+
+		try {
+			
+			SystemPerformanceData systemPerformanceData = DataUtil.getInstance().jsonToSystemPerformanceData(payload);
+			//_Logger.info("Receive SystemPerformanceData response: " + systemPerformanceData.getValue());
+
+			if (this.dataMsgListener != null) {
+				this.dataMsgListener.handleSystemPerformanceMessage(ResourceNameEnum.CDA_SYSTEM_PERF_MSG_RESOURCE, systemPerformanceData);
+			}
+		} catch (Exception e) {
+			_Logger.warning("Failed to convert message payload to SystemPerformanceData: " + e.getMessage());
+		}
+	}
+	
+
 }
