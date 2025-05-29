@@ -25,6 +25,7 @@ import programmingtheiot.data.SystemPerformanceData;
 
 import programmingtheiot.gda.connection.CloudClientConnector;
 import programmingtheiot.gda.connection.CoapServerGateway;
+import programmingtheiot.gda.connection.ICloudClient;
 import programmingtheiot.gda.connection.IPersistenceClient;
 import programmingtheiot.gda.connection.IPubSubClient;
 import programmingtheiot.gda.connection.IRequestResponseClient;
@@ -70,7 +71,7 @@ public class DeviceDataManager implements IDataMessageListener
 	private OffsetDateTime latestHumiditySensorTimeStamp =null;
 
 	private boolean handleHumidityChangeOnDevice =false;// optional
-	private int lastKnownHumidifierCommand   =ConfigConst.OFF_COMMAND;
+	private int lastKnownHumidifierCommand   = ConfigConst.OFF_COMMAND;
 
 	// TODO: Load these from PiotConfig.props
 	private long humidityMaxTimePastThreshold =300;// seconds
@@ -130,19 +131,51 @@ public class DeviceDataManager implements IDataMessageListener
 	@Override
 	public boolean handleActuatorCommandResponse(ResourceNameEnum resourceName, ActuatorData data)
 	{
-		return false;
+		if (data != null) {
+			_Logger.info("Handling actuator response: " + data.getName());
+	
+			this.handleIncomingDataAnalysis(resourceName, data);
+	
+			if (data.hasError()) {
+				_Logger.warning("Error flag set for ActuatorData instance.");
+			}
+	
+			return true;
+		} else {
+			return false;
+		}
 	}
 
 	@Override
 	public boolean handleActuatorCommandRequest(ResourceNameEnum resourceName, ActuatorData data)
 	{
-		return false;
+		if (data != null) {
+			_Logger.log(Level.FINE, "Actuator request received: {0}. Message: {1}", new Object[] {resourceName.getResourceName(), Integer.valueOf((data.getCommand()))});
+
+			if (data.hasError()) {
+				_Logger.warning("Error flag set for ActuatorData instance.");
+			}
+
+			int qos = ConfigConst.DEFAULT_QOS;
+
+			this.sendActuatorCommandtoCda(resourceName, data);
+
+			return true;
+		} else {
+			return false;
+		}
 	}
 
 	@Override
 	public boolean handleIncomingMessage(ResourceNameEnum resourceName, String msg)
 	{
-		return false;
+		if (msg != null) {
+			_Logger.info("Handling incoming generic message: " + msg);
+	
+			return true;
+		} else {
+			return false;
+		}
 	}
 
 	@Override
@@ -180,6 +213,26 @@ public class DeviceDataManager implements IDataMessageListener
 	{
 		// NOTE: This will be implemented in Part 04
 		_Logger.info("TODO: Send JSON data to cloud service: " +resource);
+		if (this.cloudClient != null) {
+			// TODO: handle any failures
+			//if (this.cloudClient.sendEdgeDataToCloud(resource, jsonData)) {
+			_Logger.fine("Sent JSON data upstream to CSP.");
+			//}
+		}
+	}
+
+	private void handleIncomingDataAnalysis(ResourceNameEnum resource, ActuatorData data)
+	{
+		_Logger.info("Analyzing incoming actuator data: " +data.getName());
+
+		if (data.isResponseFlagEnabled()) {
+			// TODO: implement this
+		}else {
+			if (this.actuatorDataListener !=null) {
+				this.actuatorDataListener.onActuatorDataUpdate(data);
+			}
+		}
+		
 	}
 
 	private void handleIncomingDataAnalysis(ResourceNameEnum resource,SensorData data)
@@ -301,7 +354,25 @@ public class DeviceDataManager implements IDataMessageListener
 	@Override
 	public boolean handleSystemPerformanceMessage(ResourceNameEnum resourceName, SystemPerformanceData data)
 	{
-		return false;
+		if (data != null) {
+			_Logger.info("Handling system performance message: " + data.getName());
+
+			if (data.hasError()) {
+				_Logger.warning("Error flag set for SystemPerformanceData instance.");
+			}
+			String jsonData =DataUtil.getInstance().systemPerformanceDataToJson(data);
+
+			// TODO: retrieve this from config file
+			int qos = ConfigConst.DEFAULT_QOS;
+
+			// NOTE: You may want to persist your SystemPerformanceData here
+
+			// NOTE: You may want to also analyze the SystemPerformanceData here
+			this.handleUpstreamTransmission(resourceName, jsonData, qos);
+			return true;
+		} else {
+			return false;
+		}
 	}
 	
 	public void setActuatorDataListener(String name, IActuatorDataListener listener)
@@ -358,6 +429,10 @@ public class DeviceDataManager implements IDataMessageListener
 		if (this.sysPerfMgr != null) {
 			this.sysPerfMgr.startManager();
 		}
+
+		if (this.cloudClient != null) {
+			this.cloudClient.connectClient();
+		}
 	}
 	
 	public void stopManager()
@@ -400,6 +475,11 @@ public class DeviceDataManager implements IDataMessageListener
 				_Logger.severe("Failed to stop CoAP server. Check log file for details.");
 			}
 		}
+
+		if (this.cloudClient != null) {
+			this.cloudClient.disconnectClient();
+		}
+
 	}
 
 	
