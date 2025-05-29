@@ -76,6 +76,7 @@ public class MqttClientConnector implements IPubSubClient, MqttCallbackExtended
 
 	private IConnectionListener connListener =null;
 	private boolean useCloudGatewayConfig =false;
+
 	
 	// constructors
 	
@@ -289,12 +290,19 @@ public class MqttClientConnector implements IPubSubClient, MqttCallbackExtended
 	public void connectComplete(boolean reconnect, String serverURI)
 	{
 		_Logger.info("MQTT connection successful (is reconnect = " + reconnect + "). Broker: " + serverURI);
-		
+
 		int qos = 1;
 
-		this.subscribeToTopic(ResourceNameEnum.CDA_ACTUATOR_RESPONSE_RESOURCE, qos);
-		this.subscribeToTopic(ResourceNameEnum.CDA_SENSOR_MSG_RESOURCE, qos);
-		this.subscribeToTopic(ResourceNameEnum.CDA_SYSTEM_PERF_MSG_RESOURCE, qos);
+		if (!this.useCloudGatewayConfig) {
+			this.subscribeToTopic(ResourceNameEnum.CDA_ACTUATOR_RESPONSE_RESOURCE, qos);
+			this.subscribeToTopic(ResourceNameEnum.CDA_SENSOR_MSG_RESOURCE, qos);
+			this.subscribeToTopic(ResourceNameEnum.CDA_SYSTEM_PERF_MSG_RESOURCE, qos);
+		}
+
+
+		if (this.connListener != null) {
+			this.connListener.onConnect();
+		}
 		
 	}
 

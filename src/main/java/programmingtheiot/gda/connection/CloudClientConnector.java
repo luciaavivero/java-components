@@ -12,19 +12,25 @@ import java.util.Properties;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+import org.eclipse.paho.client.mqttv3.IMqttMessageListener;
+import org.eclipse.paho.client.mqttv3.MqttMessage;
+
 import programmingtheiot.common.ConfigConst;
 import programmingtheiot.common.ConfigUtil;
 import programmingtheiot.common.IDataMessageListener;
 import programmingtheiot.common.ResourceNameEnum;
+import programmingtheiot.data.ActuatorData;
 import programmingtheiot.data.DataUtil;
 import programmingtheiot.data.SensorData;
 import programmingtheiot.data.SystemPerformanceData;
+
+
 
 /**
  * Shell representation of class for student implementation.
  *
  */
-public class CloudClientConnector implements ICloudClient
+public class CloudClientConnector implements ICloudClient, IConnectionListener
 {
 	// static
 	
@@ -68,6 +74,7 @@ public class CloudClientConnector implements ICloudClient
 	{
 		if (this.mqttClient == null) {
 			this.mqttClient = new MqttClientConnector(ConfigConst.CLOUD_GATEWAY_SERVICE);
+			this.mqttClient.setConnectionListener(this);
 		}
 
 		return this.mqttClient.connectClient();
@@ -158,7 +165,17 @@ public class CloudClientConnector implements ICloudClient
 
 	private String createTopicName(String deviceName, String resourceTypeName)
 	{
-		return this.topicPrefix + deviceName + "/" + resourceTypeName;
+		StringBuilder buf = new StringBuilder();
+
+		if (deviceName != null && deviceName.trim().length() > 0) {
+			buf.append(topicPrefix).append(deviceName);
+		}
+
+		if (resourceTypeName != null && resourceTypeName.trim().length() > 0) {
+			buf.append('/').append(resourceTypeName);
+		}
+
+		return buf.toString().toLowerCase();
 	}
 	
 	private boolean publishMessageToCloud(ResourceNameEnum resource, String itemName, String payload) {
@@ -177,4 +194,92 @@ public class CloudClientConnector implements ICloudClient
 		return false;
 	}
 
+
+	private class LedEnablementMessageListener implements IMqttMessageListener {
+		private IDataMessageListener dataMsgListener = null;
+
+		private ResourceNameEnum resource = ResourceNameEnum.CDA_ACTUATOR_CMD_RESOURCE;
+
+		private int typeID = ConfigConst.LED_ACTUATOR_TYPE;
+		private String itemName = ConfigConst.LED_ACTUATOR_NAME;
+
+		LedEnablementMessageListener(IDataMessageListener dataMsgListener) {
+			this.dataMsgListener = dataMsgListener;
+		}
+
+		public ResourceNameEnum getResource() {
+			return this.resource;
+		}
+
+		@Override
+		public void messageArrived(String topic, MqttMessage message) throws Exception {
+			try {
+				String jsonData = new String(message.getPayload());
+
+				ActuatorData actuatorData = DataUtil.getInstance().jsonToActuatorData(jsonData);
+
+				actuatorData.setLocationID(ConfigConst.CONSTRAINED_DEVICE);
+				actuatorData.setTypeID(this.typeID);
+				actuatorData.setName(this.itemName);
+
+				int val = (int) actuatorData.getValue();
+
+				switch (val) {
+					case ConfigConst.ON_COMMAND:
+						_Logger.info("Received LED enablement message [ON].");
+						actuatorData.setStateData("LED switching ON");
+						break;
+
+					case ConfigConst.OFF_COMMAND:
+						_Logger.info("Received LED enablement message [OFF].");
+						actuatorData.setStateData("LED switching OFF");
+						break;
+
+					default:
+						return;
+				}
+
+				if (this.dataMsgListener != null) {
+					jsonData = DataUtil.getInstance().actuatorDataToJson(actuatorData);
+					this.dataMsgListener.handleIncomingMessage(
+							ResourceNameEnum.CDA_ACTUATOR_CMD_RESOURCE, jsonData);
+				}
+			} catch (Exception e) {
+				_Logger.warning("Failed to convert message payload to ActuatorData.");
+			}
+		}
+
+	}
+
+	@Override
+	public void onConnect() {
+		_Logger.info("Handling CSP subscriptions and device topic provisioning...");
+
+		LedEnablementMessageListener leml = new LedEnablementMessageListener(this.dataMsgListener);
+
+		ActuatorData ad = new ActuatorData();
+		ad.setAsResponse();
+		ad.setName(ConfigConst.LED_ACTUATOR_NAME);
+		ad.setValue((float) -1.0);
+
+		String ledTopic = createTopicName(leml.getResource().getDeviceName(), ad.getName());
+		String adJson = DataUtil.getInstance().actuatorDataToJson(ad);
+
+		this.publishMessageToCloud(ledTopic, adJson);
+		this.mqttClient.subscribeToTopic(ledTopic, this.qosLevel, leml);
+	}
+
+	@Override
+	public void onDisconnect() {
+		_Logger.info("MQTT client disconnected. Nothing else to do.");
+	}
+
+	private String createTopicName(ResourceNameEnum resource, String itemName) {
+		return (createTopicName(resource) + "-" + itemName).toLowerCase();
+	}
+
+	
+
 }
+
+
